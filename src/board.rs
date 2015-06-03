@@ -38,14 +38,14 @@ impl WorkerPool {
 
 struct BoardAdvancer {
     board: Board,
-    next_cells: RwLock<Vec<Vec<bool>>>
+    next_cells: Vec<RwLock<Vec<bool>>>
 }
 
 impl BoardAdvancer {
     fn new(board: &Board, num_tasks: usize) -> BoardAdvancer {
         BoardAdvancer {
             board: board.clone(),
-            next_cells: RwLock::new(repeat(vec![]).take(num_tasks).collect()),
+            next_cells: (0..num_tasks).map(|_| RwLock::new(vec![])).collect(),
         }
     }
 
@@ -67,8 +67,8 @@ impl BoardAdvancer {
                 let task_values = task.iter().map(|&idx|
                     task_board.board.successor_cell(idx)
                 ).collect::<Vec<bool>>();
-                if let Ok(mut task_results) = task_board.next_cells.write() {
-                    task_results[i] = task_values;
+                if let Ok(mut task_results) = task_board.next_cells[i].write() {
+                    *task_results = task_values;
                 }
                 done.wait();
             });
@@ -76,7 +76,8 @@ impl BoardAdvancer {
         };
 
         barrier.wait();
-        let next_board = shared_board.next_cells.read().unwrap();
+        let next_board: Vec<Vec<bool>> = shared_board.next_cells.iter()
+            .map(|i| i.read().unwrap().clone()).collect();
         next_board.concat()
     }
 
